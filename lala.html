@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Record Sheet</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            display: flex;
+        }
+        #sidebar {
+            width: 200px;
+            padding: 10px;
+            border-right: 1px solid #ddd;
+            background-color: #fff;
+        }
+        #content {
+            flex-grow: 1;
+            padding: 20px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            max-width: 800px;
+            margin: auto;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        input[type="number"], select {
+            width: 100%;
+            border: none;
+            outline: none;
+        }
+        #controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .nav-link {
+            display: block;
+            margin: 5px 0;
+            cursor: pointer;
+            color: #007BFF;
+        }
+        .nav-link:hover {
+            text-decoration: underline;
+        }
+        .button {
+            margin: 5px 0;
+            padding: 5px 10px;
+            cursor: pointer;
+            color: white;
+            background-color: #4CAF50;
+            border: none;
+            border-radius: 5px;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h3>Grade Levels</h3>
+    <div id="gradeLinks"></div>
+    <button class="button" id="addGradeButton" onclick="addGradeLevel()">Add Grade Level</button>
+    <div id="sectionLinks" style="display:none;">
+        <h4>Sections</h4>
+        <div id="sectionLinksContainer"></div>
+        <button class="button" id="addSectionButton" onclick="addSection()">Add Section</button>
+    </div>
+</div>
+
+<div id="content">
+    <h2 id="tableTitle" style="text-align:center;">Select a Section</h2>
+    <div id="controls">
+        <button id="exportButton" class="button">Export Grades</button>
+        <button id="addRowButton" class="button" onclick="addRow()">Add Row</button>
+        <button id="clearTableButton" class="button">Clear Table</button>
+        <button id="submidDataButton" class="button" onclick="submitData()">Submit Data</button>
+    </div>
+    <div id="tablesContainer"></div>
+</div>
+
+<script>
+let gradeLevels = [];  // Global array for grade levels
+let sectionsData = {};  // Global object for sections
+
+document.addEventListener('DOMContentLoaded', () => {
+    fetchGradeLevels(); // Fetch data when the page loads
+});
+
+function fetchGradeLevels() {
+    fetch('fetch_grades.php')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.statusText);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log(data); // Log the fetched data to inspect its structure
+            gradeLevels = data.grades; // Populate gradeLevels array
+            sectionsData = data.sections; // Populate sectionsData object
+            updateGradeLinks(); // Update the grade links in the sidebar
+        })
+        .catch(error => console.error('Error fetching grades:', error));
+}
+
+function updateGradeLinks() {
+    const gradeLinksContainer = document.getElementById('gradeLinks');
+    gradeLinksContainer.innerHTML = ''; // Clear existing links
+
+    gradeLevels.forEach(grade => {
+        const link = document.createElement('div');
+        link.className = 'nav-link';
+        link.innerText = `Grade ${grade}`;
+        link.onclick = () => showSections(grade);
+        gradeLinksContainer.appendChild(link);
+    });
+}
+
+function showSections(grade) {
+    document.getElementById('sectionLinks').style.display = 'block';
+    document.getElementById('tableTitle').innerText = `Grade ${grade}`;
+
+    // Fetch sections for the selected grade level
+    fetch(`get_sections.php?grade_level_id=${grade}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.statusText);
+            }
+            return response.json();
+        })
+        .then(sections => {
+            sectionsData[grade] = sections; // Store sections in the global object
+            updateSectionLinks(grade); // Update the UI with the fetched sections
+        })
+        .catch(error => console.error('Error fetching sections:', error));
+
+    if (!sectionsData[grade]) {
+        sectionsData[grade] = []; // Initialize sectionsData for this grade if it's undefined
+    }
+    
+    document.getElementById('tablesContainer').innerHTML = ''; // Clear previous table
+}
+
+function updateSectionLinks(grade) {
+    const sectionLinksContainer = document.getElementById('sectionLinksContainer');
+    sectionLinksContainer.innerText = ''; // Clear existing section links
+
+    sectionsData[grade].forEach(section => {
+        const link = document.createElement('div');
+        link.className = 'nav-link';
+        link.innerText = section.name; // Use section.name to display the section name
+        link.onclick = () => showTable(section.id); // Use section.id to fetch records
+        sectionLinksContainer.appendChild(link);
+    });
+}
+
+
+    async function showTable(sectionId) {
+        document.getElementById('tableTitle').innerText = `Section ${sectionId}`;
+        const response = await fetch(`get_records.php?section_id=${sectionId}`);
+        const records = await response.json();
+        const tableHtml = createTable(records);
+        document.getElementById('tablesContainer').innerHTML = tableHtml;
+    }
+
+    function createTable(records) {
+        const rows = records.map(record => `
+            <tr>
+                <td><input type="text" name="student_name" value="${record.student_name}"></td>
+                <td><input type="number" name="student_id" value="${record.student_id}"></td>  
+                <td>
+                    <select name="subject">
+                        <option value="Math" ${record.subject === 'Math' ? 'selected' : ''}>Math</option>
+                        <option value="Science" ${record.subject === 'Science' ? 'selected' : ''}>Science</option>
+                        <option value="English" ${record.subject === 'English' ? 'selected' : ''}>English</option>
+                        <option value="MAPEH" ${record.subject === 'MAPEH' ? 'selected' : ''}>MAPEH</option>
+                    </select>
+                </td>
+                <td>
+                    <select>
+                        <option value="Assignment/Activity" ${record.activity === 'Assignment/Activity' ? 'selected' : ''}>Assignment/Activity</option>
+                        <option value="Summative" ${record.activity === 'Summative' ? 'selected' : ''}>Summative</option>
+                        <option value="Periodical" ${record.activity === 'Periodical' ? 'selected' : ''}>Periodical</option>
+                        <option value="Performance Task" ${record.activity === 'Performance Task' ? 'selected' : ''}>Performance Task</option>
+                    </select>
+                </td>
+                <td><input type="number" name="hps" min="0" value="${record.hps}"></td>
+                <td><input type="number" name="score" min="0" value="${record.score}"></td>
+                <td><button class="button deleteRowButton" onclick="deleteRow(this)">Delete</button></td>
+            </tr>
+        `).join('');
+
+        return `
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Student ID</th>
+                        <th>Subject</th>
+                        <th>Activity</th>
+                        <th>HPS</th>
+                        <th>Score</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        `;
+    }
+    function addRow() {
+    const table = document.getElementById('dataTable');
+    if (!table) {
+        alert("No table found. Please select a section first.");
+        return;
+    }
+
+    const newRow = document.createElement('tr');
+    newRow.classList.add('new-row'); // Add a class to identify new rows
+    newRow.innerHTML = `
+        <td><input type="text" name="student_name"></td>
+        <td><input type="number" name="student_id"></td>
+        <td>
+            <select name="subject">
+                <option value="Math">Math</option>
+                <option value="Science">Science</option>
+                <option value="English">English</option>
+                <option value="MAPEH">MAPEH</option>
+            </select>
+        </td>
+        <td>
+            <select name="activity">
+                <option value="Assignment/Activity">Assignment/Activity</option>
+                <option value="Summative">Summative</option>
+                <option value="Periodical">Periodical</option>
+                <option value="Performance Task">Performance Task</option>
+            </select>
+        </td>
+        <td><input type="number" name="hps" min="0" value="0"></td>
+        <td><input type="number" name="score" min="0" value="0"></td>
+        <td><button class="button deleteRowButton" onclick="deleteRow(this)">Delete</button></td>
+    `;
+    table.querySelector('tbody').appendChild(newRow);
+}
+function deleteRow(button) {
+    const row = button.closest('tr');
+    if (row) {
+        const studentName = row.cells[0].querySelector('input').value; // Get student name
+        const sectionId = document.getElementById('tableTitle').innerText.split(' ')[1]; // Get section ID
+
+        // Send a request to delete the record from the database
+        fetch('delete_record.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ section_id: sectionId, student_name: studentName }), // Send necessary data
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                row.remove(); // Remove the row from the table
+                alert('Record deleted successfully!');
+            } else {
+                alert('Failed to delete record: ' + result.message);
+            }
+        })
+        .catch(error => console.error('Error deleting record:', error));
+    }
+}
+function submitData() {
+    const table = document.getElementById('dataTable');
+    if (!table) {
+        alert("No table found. Please select a section first.");
+        return;
+    }
+
+    const rows = Array.from(table.querySelectorAll('tbody tr.new-row')); // Only select new rows
+    const data = rows.map(row => {
+        const studentName = row.cells[0].querySelector('input').value; // Get input value
+        const student_id = row.cells[1].querySelector('input').value;
+        const subject = row.cells[2].querySelector('select').value;
+        const activity = row.cells[3].querySelector('select').value;
+        const hps = row.cells[4].querySelector('input').value;
+        const score = row.cells[5].querySelector('input').value;
+
+        return { student_name: studentName,student_id, subject, activity, hps, score };
+    });
+
+    // Get the current section ID
+    const sectionId = document.getElementById('tableTitle').innerText.split(' ')[1]; // Adjust this based on your title format
+
+    // Send data to the server
+    fetch('submit_data.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ section_id: sectionId, records: data }), // Include section_id
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('Data submitted successfully!');
+            // Optionally, you can refresh the table or update the UI here
+        } else {
+            alert('Failed to submit data: ' + result.message);
+        }
+    })
+    .catch(error => console.error('Error submitting data:', error));
+}
+    function fetchAndDisplayGradeLevels() {
+    fetch('get_grades_and_sections.php')
+        .then(response => response.json())
+        .then(data => {
+            const gradeLinksContainer = document.getElementById('gradeLinks');
+            gradeLinksContainer.innerHTML = '';
+
+            // Loop through each grade level and add it to the sidebar
+            data.forEach(grade => {
+                const link = document.createElement('div');
+                link.className = 'nav-link';
+                link.innerText = `Grade ${grade.grade_level}`;
+                link.onclick = () => showSections(grade.id); // Pass the grade ID to fetch sections
+                gradeLinksContainer.appendChild(link);
+            });
+        })
+        .catch(error => console.error('Error fetching grades:', error));
+}
+
+function addGradeLevel() {
+    const gradeLevel = prompt("Enter Grade Level (e.g., 7, 8, 9):");
+    if (gradeLevel) {
+        fetch('add_grade.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ grade_name: gradeLevel })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                alert('Grade level added');
+                fetchAndDisplayGradeLevels(); // Fetch and update the grade levels in the UI
+            } else {
+                alert(result.message);
+            }
+        })
+        .catch(error => console.error('Error adding grade level:', error));
+    }
+}
+window.onload = function() {
+    fetchAndDisplayGradeLevels();
+};
+
+function addSection() {
+    const grade = document.querySelector('#tableTitle').innerText.split(' ')[1];
+    const section = prompt("Enter Section Name (e.g., Section 1, Section 2):");
+
+    if (section) {
+        fetch('add_section.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ grade: grade, section: section }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                if (!sectionsData[grade]) {
+                    sectionsData[grade] = []; // Initialize if it doesn't exist
+                }
+                sectionsData[grade].push(section); // Add the new section
+                updateSectionLinks(grade); // Update the UI
+            } else {
+                alert('Failed to add section: ' + data.message);
+            }
+        })
+        .catch(error => console.error('Error adding section:', error));
+    } else {
+        alert("Invalid or duplicate section name.");
+    }
+}
+</script>
+
+</body>
+</html>
