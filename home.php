@@ -55,10 +55,7 @@
 		</div>
 	</div>
 
-<
-	<div class="footer">
-		<a href="#">© Anwesha-Suman-Swarnava-Sandipan-Samir 2021</a>
-	</div>
+
 
     <div class="arrow">
 		<a href="#home"><img src="arrow.png" alt="up_arrow"></a>
